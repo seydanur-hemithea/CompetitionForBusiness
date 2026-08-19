@@ -1,0 +1,17 @@
+## .NET / C# Derleme ve Geçici Klasörler
+[Bb]in/
+[Oo]bj/
+out/
+.vs/
+.vscode/
+
+## Hassas Yapýlandýrma ve Þifre Dosyalarý
+appsettings.Development.json
+appsettings.Production.json
+*.env
+*.user
+
+## Sistem ve IDE Dosyalarý
+.DS_Store
+Thumbs.db
+FlutterUI/

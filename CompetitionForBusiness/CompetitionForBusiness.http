@@ -1,0 +1,6 @@
+@CompetitionForBusiness_HostAddress = http://localhost:5114
+
+GET {{CompetitionForBusiness_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
