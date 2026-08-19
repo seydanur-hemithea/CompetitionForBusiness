@@ -17,7 +17,7 @@ builder.Services.AddSignalR();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CompetitionForBusiness.Services.AiAnalysisService>();
 
-// Mobil Uygulama ve Web Erişimleri İçin CORS Politikası
+// Mobil Uygulama ve Web EriÃ¾imleri ÃÃ§in CORS PolitikasÃ½
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -25,20 +25,20 @@ builder.Services.AddCors(options =>
         policy.AllowAnyHeader()
               .AllowAnyMethod()
               .SetIsOriginAllowed(_ => true)
-              .AllowCredentials(); // SignalR için şarttır
+              .AllowCredentials(); // SignalR iÃ§in Ã¾arttÃ½r
     });
 });
 
-// Supabase PostgreSQL DbContext Kaydı
-// 1. Sadece Render / Sistem Environment Variable hafızasından okuma yapılır.
-// (Render panelinde Key ismi: ConnectionStrings__SupabaseConnection olacaktır)
+// Supabase PostgreSQL DbContext KaydÃ½
+// 1. Sadece Render / Sistem Environment Variable hafÃ½zasÃ½ndan okuma yapÃ½lÃ½r.
+// (Render panelinde Key ismi: ConnectionStrings__SupabaseConnection olacaktÃ½r)
 string connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__SupabaseConnection");
 
-// 2. Güvenlik ve Doğrulama Kontrolü
+// 2. GÃ¼venlik ve DoÃ°rulama KontrolÃ¼
 if (string.IsNullOrEmpty(connectionString))
 {
-    // Eğer Render panelinde tanımlanmamışsa sunucu güvenli şekilde açılmayı reddeder.
-    throw new InvalidOperationException("KRİTİK HATA: Render üzerinde 'ConnectionStrings__SupabaseConnection' çevre değişkeni bulunamadı!");
+    // EÃ°er Render panelinde tanÃ½mlanmamÃ½Ã¾sa sunucu gÃ¼venli Ã¾ekilde aÃ§Ã½lmayÃ½ reddeder.
+    throw new InvalidOperationException("KRÃTÃK HATA: Render Ã¼zerinde 'ConnectionStrings__SupabaseConnection' Ã§evre deÃ°iÃ¾keni bulunamadÃ½!");
 }
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -46,18 +46,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+//}
 
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// SignalR Hub Endpoint Tanımlaması
+// SignalR Hub Endpoint TanÃ½mlamasÃ½
 app.MapHub<QuizHub>("/quizHub");
 
 app.Run();
