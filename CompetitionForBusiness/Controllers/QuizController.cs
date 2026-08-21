@@ -79,7 +79,7 @@ namespace CompetitionForBusiness.Controllers
                 await _hubContext.Clients.Group(roomId).SendAsync("ReceiveQuestion", questionData);
 
                 return Ok(new { Message = "Soru tüm katılımcılara gönderildi." });
-            }
+            }}
             [HttpPost("submit-answer")]
 public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 {
@@ -94,4 +94,4 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
         }
-}
+
