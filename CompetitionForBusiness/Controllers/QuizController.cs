@@ -83,9 +83,11 @@ namespace CompetitionForBusiness.Controllers
             [HttpPost("submit-answer")]
 public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 {
-    if (answer.Id == Guid.Empty)
+    // Id identity/auto-increment olduğu için 0 geldiğinde sıfırlayabilirsiniz
+    // veya EF Core'un otomatik ID üretmesine izin verebilirsiniz.
+    if (answer.Id == 0)
     {
-        answer.Id = Guid.NewGuid();
+        // EF Core SaveChangesAsync sırasında PostgreSQL IDENTITY kolonu için ID'yi otomatik atayacaktır.
     }
 
     _context.UserAnswers.Add(answer);
@@ -93,6 +95,7 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
+
         }
         }
 
