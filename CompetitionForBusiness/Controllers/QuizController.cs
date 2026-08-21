@@ -95,6 +95,13 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
+// Tüm soruları getiren yeni endpoint
+[HttpGet("questions")]
+public async Task<IActionResult> GetQuestions()
+{
+    var questions = await _context.Questions.AsNoTracking().ToListAsync();
+    return Ok(questions);
+}
 
         }
         }
