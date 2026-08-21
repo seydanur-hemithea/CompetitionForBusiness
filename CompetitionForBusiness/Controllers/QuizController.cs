@@ -2,9 +2,11 @@
 using CompetitionForBusiness.Hubs;
 using CompetitionForBusiness.Models;
 using CompetitionForBusiness.Services;
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore; // <-- BU SATIR EKLENDİ (AsNoTracking ve ToListAsync için şart)
+using System;
+using System.Threading.Tasks;
 
 using System;
 
