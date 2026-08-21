@@ -80,5 +80,18 @@ namespace CompetitionForBusiness.Controllers
 
                 return Ok(new { Message = "Soru tüm katılımcılara gönderildi." });
             }
+            [HttpPost("submit-answer")]
+public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
+{
+    if (answer.Id == Guid.Empty)
+    {
+        answer.Id = Guid.NewGuid();
+    }
+
+    _context.UserAnswers.Add(answer);
+    await _context.SaveChangesAsync();
+
+    return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
+}
         }
 }
