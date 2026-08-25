@@ -43,9 +43,14 @@ namespace CompetitionForBusiness.Controllers
             return Ok(result);
         }
 
-        [HttpPost("register")]
+       [HttpPost("register")]
 public async Task<IActionResult> Register([FromBody] RegisterDto model)
 {
+    Console.WriteLine($"[LOG] Kayıt isteği ulaştı: {model?.Email}");
+
+    if (model == null || string.IsNullOrWhiteSpace(model.Email))
+        return BadRequest("Geçersiz veri.");
+
     try
     {
         string combinedFullName = string.IsNullOrWhiteSpace(model.FullName)
@@ -56,18 +61,24 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
         {
             Id = Guid.NewGuid(),
             Email = model.Email,
-            Phone = model.Phone,
+            Phone = model.Phone ?? string.Empty,
             FullName = combinedFullName,
             CreatedAt = DateTime.UtcNow
         };
 
+        // 1. Kullanıcıyı kaydet ve SaveChanges yap
         _context.Participants.Add(participant);
         await _context.SaveChangesAsync();
+        Console.WriteLine($"[LOG] Kullanıcı yazıldı ID: {participant.Id}");
 
-        // Soruları kilitlenme olmaksızın çekiyoruz
-        var questionsList = await _context.Questions.AsNoTracking().ToListAsync();
+        // 2. Kilitlenmeyi önlemek için AsNoTracking() ve Take(10) ile soruları çek
+        var questions = await _context.Questions
+            .AsNoTracking()
+            .Take(10)
+            .ToListAsync();
 
-        // Yanıtta 'questions' (küçük q) olarak dönüyoruz
+        Console.WriteLine($"[LOG] Yanıta {questions.Count} soru eklendi.");
+
         return Ok(new
         {
             id = participant.Id,
@@ -75,12 +86,13 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
             email = participant.Email,
             phone = participant.Phone,
             createdAt = participant.CreatedAt,
-            questions = questionsList 
+            questions = questions
         });
     }
     catch (Exception ex)
     {
-        return StatusCode(500, $"Sunucu hatası: {ex.Message}");
+        Console.WriteLine($"[HATA] Register hatası: {ex.Message}");
+        return StatusCode(500, $"Veritabanı kilitlenme hatası: {ex.Message}");
     }
 }
 
