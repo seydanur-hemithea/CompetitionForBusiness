@@ -138,23 +138,33 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
 
 
         [HttpGet("questions")]
-        public async Task<IActionResult> GetQuestions()
-        {
-            Console.WriteLine("[LOG] /questions endpoint'ine istek geldi.");
-
-            try
+public async Task<IActionResult> GetQuestions()
+{
+    Console.WriteLine("[LOG] /questions isteği ulaştı.");
+    try
+    {
+        var questions = await _context.Questions
+            .AsNoTracking()
+            .Select(q => new
             {
-                // AsNoTracking() eklenerek veritabanı kilitlenmesi (deadlock) engellendi
-                var questions = await _context.Questions.AsNoTracking().ToListAsync();
-                Console.WriteLine($"[LOG] Veritabanından çekilen soru sayısı: {questions.Count}");
+                id = q.Id,
+                questionText = q.QuestionText,
+                optionA = q.OptionA,
+                optionB = q.OptionB,
+                optionC = q.OptionC,
+                optionD = q.OptionD,
+                category = q.Category
+            })
+            .ToListAsync();
 
-                return Ok(questions);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[HATA] Questions çekilirken hata oluştu: {ex.Message}");
-                return StatusCode(500, $"Veritabanı hatası: {ex.Message}");
-            }
-        }
+        Console.WriteLine($"[LOG] Dönen soru sayısı: {questions.Count}");
+        return Ok(questions);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[HATA] Questions çekilirken hata: {ex.Message}");
+        return StatusCode(500, $"Soru getirme hatası: {ex.Message}");
+    }
+}
     }
 }
