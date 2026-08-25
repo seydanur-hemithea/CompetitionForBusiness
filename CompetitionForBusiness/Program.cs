@@ -41,7 +41,7 @@ if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("KRÝTÝK HATA: Render üzerinde 'ConnectionStrings__SupabaseConnection' çevre deðiþkeni bulunamadý!");
 }
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContextPool<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 var app = builder.Build();
