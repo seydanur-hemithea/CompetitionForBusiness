@@ -43,14 +43,9 @@ namespace CompetitionForBusiness.Controllers
             return Ok(result);
         }
 
-       [HttpPost("register")]
+      [HttpPost("register")]
 public async Task<IActionResult> Register([FromBody] RegisterDto model)
 {
-    Console.WriteLine($"[LOG] Kayıt isteği ulaştı: {model?.Email}");
-
-    if (model == null || string.IsNullOrWhiteSpace(model.Email))
-        return BadRequest("Geçersiz veri.");
-
     try
     {
         string combinedFullName = string.IsNullOrWhiteSpace(model.FullName)
@@ -60,28 +55,18 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
         var participant = new Participant
         {
             Id = Guid.NewGuid(),
-            Email = model.Email,
+            Email = model.Email ?? string.Empty,
             Phone = model.Phone ?? string.Empty,
             FullName = combinedFullName,
             CreatedAt = DateTime.UtcNow
         };
 
-        // 1. Katılımcıyı kaydet
         _context.Participants.Add(participant);
         await _context.SaveChangesAsync();
-        Console.WriteLine($"[LOG] Kullanıcı yazıldı ID: {participant.Id}");
 
-        // 2. EF Core takip listesini temizleyerek bağlantı çakışmasını engelle
-        _context.ChangeTracker.Clear();
-
-        // 3. OrderBy ekleyerek soruları güvenle çek
-        var questions = await _context.Questions
-            .AsNoTracking()
-            .OrderBy(q => q.Id)
-            .Take(10)
-            .ToListAsync();
-
-        Console.WriteLine($"[LOG] Yanıta {questions.Count} soru eklendi.");
+        // 1 soruyu çekiyoruz
+        var questions = await _context.Questions.AsNoTracking().ToListAsync();
+        Console.WriteLine($"[LOG] Veritabanından çekilen soru sayısı: {questions.Count}");
 
         return Ok(new
         {
@@ -95,8 +80,8 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[HATA] Register hatası: {ex.Message}");
-        return StatusCode(500, $"Veritabanı kilitlenme hatası: {ex.Message}");
+        Console.WriteLine($"[HATA] Register sırasında sunucu hatası: {ex.Message}");
+        return StatusCode(500, $"Sunucu hatası: {ex.Message}");
     }
 }
 
