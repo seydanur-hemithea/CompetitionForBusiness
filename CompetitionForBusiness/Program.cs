@@ -6,6 +6,16 @@ using Microsoft.EntityFrameworkCore;
 using System;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .SetIsOriginAllowed(_ => true)
+              .AllowCredentials(); // SignalR için þarttýr
+    });
+});
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -18,16 +28,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<CompetitionForBusiness.Services.AiAnalysisService>();
 
 // Mobil Uygulama ve Web Eriþimleri Ýçin CORS Politikasý
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .SetIsOriginAllowed(_ => true)
-              .AllowCredentials(); // SignalR için þarttýr
-    });
-});
+
 
 // Supabase PostgreSQL DbContext Kaydý
 // 1. Sadece Render / Sistem Environment Variable hafýzasýndan okuma yapýlýr.
@@ -52,8 +53,10 @@ var app = builder.Build();
     app.UseSwaggerUI();
 //}
 
-app.UseCors("AllowAll");
+
 app.UseHttpsRedirection();
+
+app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
 
