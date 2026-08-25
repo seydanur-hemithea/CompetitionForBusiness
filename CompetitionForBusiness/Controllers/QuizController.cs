@@ -36,19 +36,39 @@ namespace CompetitionForBusiness.Controllers
             return Ok(result);
         }
 
-        // Katılımcı Kaydı (Mobil Uygulama Giriş Ettiğinde)
-        [HttpPost("register")]
-            public async Task<IActionResult> RegisterParticipant([FromBody] Participant participant)
-            {
-                participant.Id = Guid.NewGuid();
-                participant.CreatedAt = DateTime.UtcNow;
+       [HttpPost("register")]
+public async Task<IActionResult> Register([FromBody] RegisterDto model)
+{
+    Console.WriteLine($"[LOG] Kayıt isteği geldi: {model.Email}");
 
-                _context.Participants.Add(participant);
-                await _context.SaveChangesAsync();
+    // Ad ve Soyadı birleştirip FullName alanına yazıyoruz (fullName boş kalmasın diye)
+    string combinedFullName = string.IsNullOrWhiteSpace(model.FullName) 
+        ? $"{model.FirstName} {model.LastName}".Trim() 
+        : model.FullName;
 
-                return Ok(participant);
-            }
+    var participant = new Participant
+    {
+        Id = Guid.NewGuid(),
+        Email = model.Email,
+        Phone = model.Phone,
+        FullName = combinedFullName, // Artık veritabanında dolu görünecek!
+        CreatedAt = DateTime.UtcNow
+    };
 
+    _context.Participants.Add(participant);
+    await _context.SaveChangesAsync();
+
+    Console.WriteLine($"[LOG] Kullanıcı başarıyla kaydedildi ID: {participant.Id}");
+
+    return Ok(new
+    {
+        id = participant.Id,
+        fullName = participant.FullName,
+        email = participant.Email,
+        phone = participant.Phone,
+        createdAt = participant.CreatedAt
+    });
+}
             // Örnek Soru Ekleme (Yarışma İçin Sorular)
             [HttpPost("add-question")]
             public async Task<IActionResult> AddQuestion([FromBody] Question question)
@@ -98,25 +118,25 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
    // Tüm soruları getiren yeni endpoint
-   [HttpGet("questions")]
-   public async Task<IActionResult> GetQuestions()
-   {
-       try
-       {
-           // Supabase veya EF Core sorgusu async olmalı
-           var questions = await _context.Questions.ToListAsync();
+  [HttpGet("questions")]
+public async Task<IActionResult> GetQuestions()
+{
+    Console.WriteLine("[LOG] /questions endpoint'ine istek geldi.");
 
-           Console.WriteLine($"[LOG] Veritabanından {questions.Count} soru çekildi.");
-           return Ok(questions);
-       }
-       catch (Exception ex)
-       {
-           Console.WriteLine($"[HATA] Soru çekme hatası: {ex.Message}");
-           return StatusCode(500, ex.Message);
-       }
+    try
+    {
+        // Supabase/EF Core'dan soruları çekiyoruz
+        var questions = await _context.Questions.ToListAsync();
+        Console.WriteLine($"[LOG] Veritabanından çekilen soru sayısı: {questions.Count}");
 
-   }
-
+        return Ok(questions);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[HATA] Questions çekilirken hata oluştu: {ex.Message}");
+        return StatusCode(500, $"Veritabanı hatası: {ex.Message}");
+    }
+}
         }
         }
 
