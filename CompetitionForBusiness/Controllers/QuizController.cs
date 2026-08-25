@@ -46,10 +46,8 @@ namespace CompetitionForBusiness.Controllers
      [HttpPost("register")]
 public async Task<IActionResult> Register([FromBody] RegisterDto model)
 {
-    Console.WriteLine($"[LOG] Kayıt isteği geldi: {model?.Email}");
-
     if (model == null || string.IsNullOrWhiteSpace(model.Email))
-        return BadRequest("Geçersiz veri.");
+        return BadRequest("Geçersiz kayıt verisi.");
 
     try
     {
@@ -68,39 +66,23 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
 
         _context.Participants.Add(participant);
         await _context.SaveChangesAsync();
-        Console.WriteLine($"[LOG] Kullanıcı kaydedildi ID: {participant.Id}");
 
-        // DÖNGÜSEL REFERANSI VE KİLİTLENMEYİ ÖNLEMEK İÇİN SELECT KULLANIYORUZ:
-        var questionsList = await _context.Questions
-            .AsNoTracking()
-            .Select(q => new
-            {
-                id = q.Id,
-                questionText = q.QuestionText,
-                optionA = q.OptionA,
-                optionB = q.OptionB,
-                optionC = q.OptionC,
-                optionD = q.OptionD,
-                category = q.Category
-            })
-            .ToListAsync();
+        Console.WriteLine($"[LOG] Kullanıcı başarıyla kaydedildi ID: {participant.Id}");
 
-        Console.WriteLine($"[LOG] Yanıta {questionsList.Count} soru paketlendi.");
-
+        // Sadece katılımcı bilgilerini dönüyoruz (Sorular burada YOK)
         return Ok(new
         {
             id = participant.Id,
             fullName = participant.FullName,
             email = participant.Email,
             phone = participant.Phone,
-            createdAt = participant.CreatedAt,
-            questions = questionsList
+            createdAt = participant.CreatedAt
         });
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[HATA] Register sırasında sunucu hatası: {ex.Message}");
-        return StatusCode(500, $"Sunucu hatası: {ex.Message}");
+        Console.WriteLine($"[HATA] Register hatası: {ex.Message}");
+        return StatusCode(500, $"Kayıt hatası: {ex.Message}");
     }
 }
 
