@@ -49,7 +49,6 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
 {
     Console.WriteLine($"[LOG] Kayıt isteği geldi: {model.Email}");
 
-    // Ad ve Soyadı birleştirip FullName alanına yazıyoruz (fullName boş kalmasın diye)
     string combinedFullName = string.IsNullOrWhiteSpace(model.FullName) 
         ? $"{model.FirstName} {model.LastName}".Trim() 
         : model.FullName;
@@ -59,14 +58,16 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
         Id = Guid.NewGuid(),
         Email = model.Email,
         Phone = model.Phone,
-        FullName = combinedFullName, // Artık veritabanında dolu görünecek!
+        FullName = combinedFullName,
         CreatedAt = DateTime.UtcNow
     };
 
     _context.Participants.Add(participant);
     await _context.SaveChangesAsync();
 
-    Console.WriteLine($"[LOG] Kullanıcı başarıyla kaydedildi ID: {participant.Id}");
+    // Veritabanı kilitlenmesini engellemek için AsNoTracking kullanıyoruz
+    var questions = await _context.Questions.AsNoTracking().ToListAsync();
+    Console.WriteLine($"[LOG] Kayıt yapıldı. {questions.Count} soru cevaba eklenip yollanıyor.");
 
     return Ok(new
     {
@@ -74,10 +75,10 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
         fullName = participant.FullName,
         email = participant.Email,
         phone = participant.Phone,
-        createdAt = participant.CreatedAt
+        createdAt = participant.CreatedAt,
+        questions = questions // Soruları direkt yanıt nesnesine koyuyoruz
     });
-}
-            // Örnek Soru Ekleme (Yarışma İçin Sorular)
+}        // Örnek Soru Ekleme (Yarışma İçin Sorular)
             [HttpPost("add-question")]
             public async Task<IActionResult> AddQuestion([FromBody] Question question)
             {
