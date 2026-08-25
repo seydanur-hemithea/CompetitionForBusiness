@@ -43,40 +43,46 @@ namespace CompetitionForBusiness.Controllers
             return Ok(result);
         }
 
-        // Katılımcı Kaydı (Mobil Uygulama Giriş Ettiğinde)
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterDto model)
+public async Task<IActionResult> Register([FromBody] RegisterDto model)
+{
+    try
+    {
+        string combinedFullName = string.IsNullOrWhiteSpace(model.FullName)
+            ? $"{model.FirstName} {model.LastName}".Trim()
+            : model.FullName;
+
+        var participant = new Participant
         {
-            Console.WriteLine($"[LOG] Kayıt isteği geldi: {model.Email}");
+            Id = Guid.NewGuid(),
+            Email = model.Email,
+            Phone = model.Phone,
+            FullName = combinedFullName,
+            CreatedAt = DateTime.UtcNow
+        };
 
-            // Ad ve Soyadı birleştirip FullName alanına yazıyoruz (fullName boş kalmasın diye)
-            string combinedFullName = string.IsNullOrWhiteSpace(model.FullName)
-                ? $"{model.FirstName} {model.LastName}".Trim()
-                : model.FullName;
+        _context.Participants.Add(participant);
+        await _context.SaveChangesAsync();
 
-            var participant = new Participant
-            {
-                Id = Guid.NewGuid(),
-                Email = model.Email,
-                Phone = model.Phone,
-                FullName = combinedFullName, // Artık veritabanında dolu görünecek!
-                CreatedAt = DateTime.UtcNow
-            };
+        // Soruları kilitlenme olmaksızın çekiyoruz
+        var questionsList = await _context.Questions.AsNoTracking().ToListAsync();
 
-            _context.Participants.Add(participant);
-            await _context.SaveChangesAsync();
-
-            Console.WriteLine($"[LOG] Kullanıcı başarıyla kaydedildi ID: {participant.Id}");
-
-            return Ok(new
-            {
-                id = participant.Id,
-                fullName = participant.FullName,
-                email = participant.Email,
-                phone = participant.Phone,
-                createdAt = participant.CreatedAt
-            });
-        }
+        // Yanıtta 'questions' (küçük q) olarak dönüyoruz
+        return Ok(new
+        {
+            id = participant.Id,
+            fullName = participant.FullName,
+            email = participant.Email,
+            phone = participant.Phone,
+            createdAt = participant.CreatedAt,
+            questions = questionsList 
+        });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, $"Sunucu hatası: {ex.Message}");
+    }
+}
 
         // Örnek Soru Ekleme (Yarışma İçin Sorular)
         [HttpPost("add-question")]
