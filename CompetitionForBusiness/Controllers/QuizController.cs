@@ -125,16 +125,15 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
-   // Tüm soruları getiren yeni endpoint
-  [HttpGet("questions")]
+   [HttpGet("questions")]
 public async Task<IActionResult> GetQuestions()
 {
     Console.WriteLine("[LOG] /questions endpoint'ine istek geldi.");
 
     try
     {
-        // Supabase/EF Core'dan soruları çekiyoruz
-        var questions = await _context.Questions.ToListAsync();
+        // AsNoTracking() eklenerek veritabanı kilitlenmesi (deadlock) engellendi
+        var questions = await _context.Questions.AsNoTracking().ToListAsync();
         Console.WriteLine($"[LOG] Veritabanından çekilen soru sayısı: {questions.Count}");
 
         return Ok(questions);
