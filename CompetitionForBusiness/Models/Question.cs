@@ -1,9 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CompetitionForBusiness.Models
 {
-    [Table("questions")]
+    [Table("questions")] // Supabase tablo adı (küçük harf)
     public class Question
     {
         [Key]
