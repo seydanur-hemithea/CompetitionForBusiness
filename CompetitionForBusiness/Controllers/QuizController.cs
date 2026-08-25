@@ -97,13 +97,25 @@ public async Task<IActionResult> SubmitAnswer([FromBody] UserAnswer answer)
 
     return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
 }
-// Tüm soruları getiren yeni endpoint
-[HttpGet("questions")]
-public async Task<IActionResult> GetQuestions()
-{
-    var questions = await _context.Questions.AsNoTracking().ToListAsync();
-    return Ok(questions);
-}
+   // Tüm soruları getiren yeni endpoint
+   [HttpGet("questions")]
+   public async Task<IActionResult> GetQuestions()
+   {
+       try
+       {
+           // Supabase veya EF Core sorgusu async olmalı
+           var questions = await _context.Questions.ToListAsync();
+
+           Console.WriteLine($"[LOG] Veritabanından {questions.Count} soru çekildi.");
+           return Ok(questions);
+       }
+       catch (Exception ex)
+       {
+           Console.WriteLine($"[HATA] Soru çekme hatası: {ex.Message}");
+           return StatusCode(500, ex.Message);
+       }
+
+   }
 
         }
         }
