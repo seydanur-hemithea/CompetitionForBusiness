@@ -66,14 +66,18 @@ public async Task<IActionResult> Register([FromBody] RegisterDto model)
             CreatedAt = DateTime.UtcNow
         };
 
-        // 1. Kullanıcıyı kaydet ve SaveChanges yap
+        // 1. Katılımcıyı kaydet
         _context.Participants.Add(participant);
         await _context.SaveChangesAsync();
         Console.WriteLine($"[LOG] Kullanıcı yazıldı ID: {participant.Id}");
 
-        // 2. Kilitlenmeyi önlemek için AsNoTracking() ve Take(10) ile soruları çek
+        // 2. EF Core takip listesini temizleyerek bağlantı çakışmasını engelle
+        _context.ChangeTracker.Clear();
+
+        // 3. OrderBy ekleyerek soruları güvenle çek
         var questions = await _context.Questions
             .AsNoTracking()
+            .OrderBy(q => q.Id)
             .Take(10)
             .ToListAsync();
 
