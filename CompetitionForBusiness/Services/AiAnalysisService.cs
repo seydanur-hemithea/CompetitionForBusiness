@@ -46,16 +46,23 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. KİLİTLENMEYİ ÖNLEYEN KISIM:
-                // SQL'e IN(...) sorgusu atmak yerine tüm soruları RAM'e çekip C#'ta Dictionary yapıyoruz.
-                Console.WriteLine("[AI SERVICE LOG] Tüm sorular veritabanından çekiliyor...");
-                var allQuestions = await _context.Questions
+                // 2. KİLİTLENMEYİ ÇÖZEN KISIM:
+                // Tüm nesneyi çekmek yerine SADECE gerekli kolonları anonim tip olarak çekiyoruz.
+                Console.WriteLine("[AI SERVICE LOG] Sorular hafif (Select) sorguyla çekiliyor...");
+
+                var questionsList = await _context.Questions
                     .AsNoTracking()
+                    .Select(q => new 
+                    {
+                        Id = q.Id,
+                        CorrectOption = q.CorrectOption,
+                        Category = q.Category
+                    })
                     .ToListAsync();
 
-                Console.WriteLine($"[AI SERVICE LOG] Veritabanından toplam {allQuestions.Count} soru çekildi.");
+                Console.WriteLine($"[AI SERVICE LOG] Çekilen soru sayısı: {questionsList.Count}");
 
-                var questionsDict = allQuestions.ToDictionary(q => q.Id);
+                var questionsDict = questionsList.ToDictionary(q => q.Id);
 
                 // 3. Hesaplamalar
                 int totalCorrect = 0;
