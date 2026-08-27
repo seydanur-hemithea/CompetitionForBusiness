@@ -20,111 +20,106 @@ namespace CompetitionForBusiness.Services
             _httpClient = httpClient;
         }
 
-        public async Task<AiAnalysisResult> AnalyzeParticipantPerformanceAsync(Guid participantId)
+        
+            public async Task<AiAnalysisResult> AnalyzeParticipantPerformanceAsync(Guid participantId)
+{
+    try
+    {
+        Console.WriteLine($"[AI SERVICE LOG] Analiz başladı. ID: {participantId}");
+
+        // 1. Cevapları çek
+        var userAnswers = await _context.UserAnswers
+            .AsNoTracking()
+            .Where(u => u.ParticipantId == participantId)
+            .ToListAsync();
+
+        Console.WriteLine($"[AI SERVICE LOG] Cevap sayısı: {userAnswers.Count}");
+
+        if (!userAnswers.Any())
         {
-            try
+            return new AiAnalysisResult
             {
-                Console.WriteLine($"[AI SERVICE LOG] Analiz süreci başladı. ParticipantID: {participantId}");
+                PrimarySkill = "Genel",
+                FeedbackSummary = "Henüz cevaplanmış soru bulunmuyor.",
+                IsEligibleForInterview = false,
+                OverallScore = 0
+            };
+        }
 
-                // 1. Adayın verdiği cevapları çekiyoruz
-                var userAnswers = await _context.UserAnswers
-                    .AsNoTracking()
-                    .Where(u => u.ParticipantId == participantId)
-                    .ToListAsync();
+        // 2. Kilitlenmeyi önlemek için ToListAsync() alıp hafızada Dictionary yapıyoruz
+        var questionIds = userAnswers.Select(u => u.QuestionId).Distinct().ToList();
+        
+        var questionsList = await _context.Questions
+            .AsNoTracking()
+            .Where(q => questionIds.Contains(q.Id))
+            .ToListAsync(); // ToDictionaryAsync yerine ToListAsync kullanıyoruz
 
-                Console.WriteLine($"[AI SERVICE LOG] Veritabanından çekilen cevap sayısı: {userAnswers?.Count ?? 0}");
+        var questions = questionsList.ToDictionary(q => q.Id);
 
-                if (userAnswers == null || !userAnswers.Any())
-                {
-                    Console.WriteLine("[AI SERVICE LOG] Katılımcıya ait cevap bulunamadı.");
-                    return new AiAnalysisResult
-                    {
-                        PrimarySkill = "Genel",
-                        FeedbackSummary = "Henüz analiz edilecek yanıt verisi bulunamadı.",
-                        IsEligibleForInterview = false,
-                        OverallScore = 0
-                    };
-                }
+        Console.WriteLine($"[AI SERVICE LOG] Sorular çekildi: {questions.Count} adet.");
 
-                // 2. İlgili soruları çekiyoruz
-                var questionIds = userAnswers.Select(u => u.QuestionId).Distinct().ToList();
-                Console.WriteLine($"[AI SERVICE LOG] Aranacak benzersiz soru sayısı: {questionIds.Count}");
+        // 3. Hesaplamalar
+        int totalCorrect = 0;
+        double totalResponseTime = 0;
+        var categoryStats = new Dictionary<string, (int Correct, int Total)>();
 
-                var questions = await _context.Questions
-                    .AsNoTracking()
-                    .Where(q => questionIds.Contains(q.Id))
-                    .ToDictionaryAsync(q => q.Id);
+        foreach (var answer in userAnswers)
+        {
+            totalResponseTime += answer.ResponseTimeMs;
 
-                Console.WriteLine($"[AI SERVICE LOG] Eşleşen soru sayısı: {questions.Count}");
-
-                // 3. Kategori bazlı başarı ve süre analizi
-                int totalCorrect = 0;
-                double totalResponseTime = 0;
-                var categoryStats = new Dictionary<string, (int Correct, int Total)>();
-
-                foreach (var answer in userAnswers)
-                {
-                    totalResponseTime += answer.ResponseTimeMs;
-
-                    if (questions.TryGetValue(answer.QuestionId, out var question))
-                    {
-                        // Null-safe doğru cevap kontrolü
-                        string targetCorrectOption = question.CorrectOption ?? string.Empty;
-                        string userSelectedOption = answer.SelectedOption ?? string.Empty;
-
-                        bool isCorrect = !string.IsNullOrEmpty(userSelectedOption) &&
-                                         userSelectedOption.Trim().Equals(targetCorrectOption.Trim(), StringComparison.OrdinalIgnoreCase);
-
-                        if (isCorrect) totalCorrect++;
-
-                        string category = string.IsNullOrWhiteSpace(question.Category) ? "Genel" : question.Category;
-
-                        if (!categoryStats.ContainsKey(category))
-                        {
-                            categoryStats[category] = (0, 0);
-                        }
-
-                        var current = categoryStats[category];
-                        categoryStats[category] = (current.Correct + (isCorrect ? 1 : 0), current.Total + 1);
-                    }
-                }
-
-                int totalAnswered = userAnswers.Count;
-                int scorePercentage = totalAnswered > 0 ? (int)((double)totalCorrect / totalAnswered * 100) : 0;
-                double avgResponseTimeSec = totalAnswered > 0 ? Math.Round((totalResponseTime / totalAnswered) / 1000.0, 2) : 0;
-
-                string topCategory = categoryStats.Any()
-                    ? categoryStats.OrderByDescending(c => c.Value.Total > 0 ? (double)c.Value.Correct / c.Value.Total : 0)
-                                   .FirstOrDefault().Key
-                    : "Genel";
-
-                bool isEligible = scorePercentage >= 75;
-
-                Console.WriteLine($"[AI SERVICE LOG] Analiz tamamlandı -> Skor: %{scorePercentage}, Baskın Alan: {topCategory}");
-
-                return new AiAnalysisResult
-                {
-                    PrimarySkill = topCategory,
-                    FeedbackSummary = isEligible
-                        ? $"Tebrikler! Özellikle {topCategory} alanındaki sorulara verdiğiniz ortalama {avgResponseTimeSec} saniyelik hızlı ve doğru yanıtlarla öne çıktınız."
-                        : $"Katılımınız için teşekkürler. {topCategory} alanındaki sorulara ilgi gösterdiniz, ancak mülakat barajı için biraz daha pratiğe ihtiyacınız var.",
-                    IsEligibleForInterview = isEligible,
-                    OverallScore = scorePercentage
-                };
-            }
-            catch (Exception ex)
+            if (questions.TryGetValue(answer.QuestionId, out var question))
             {
-                Console.WriteLine($"[AI SERVICE EXCEPTION] Analiz Hatalı: {ex.Message}\n{ex.StackTrace}");
+                string targetOption = question.CorrectOption ?? string.Empty;
+                string selectedOption = answer.SelectedOption ?? string.Empty;
 
-                // Servis patlasa bile uygulamanın kilitlenmemesi için fallback nesne dönüyoruz
-                return new AiAnalysisResult
-                {
-                    PrimarySkill = "Genel",
-                    FeedbackSummary = "Analiz oluşturulurken bir hata meydana geldi.",
-                    IsEligibleForInterview = false,
-                    OverallScore = 0
-                };
+                bool isCorrect = !string.IsNullOrEmpty(selectedOption) &&
+                                 selectedOption.Trim().Equals(targetOption.Trim(), StringComparison.OrdinalIgnoreCase);
+
+                if (isCorrect) totalCorrect++;
+
+                string category = string.IsNullOrWhiteSpace(question.Category) ? "Genel" : question.Category;
+
+                if (!categoryStats.ContainsKey(category))
+                    categoryStats[category] = (0, 0);
+
+                var current = categoryStats[category];
+                categoryStats[category] = (current.Correct + (isCorrect ? 1 : 0), current.Total + 1);
             }
         }
+
+        int scorePercentage = (int)((double)totalCorrect / userAnswers.Count * 100);
+        double avgResponseTimeSec = Math.Round((totalResponseTime / userAnswers.Count) / 1000.0, 2);
+
+        string topCategory = categoryStats.Any()
+            ? categoryStats.OrderByDescending(c => c.Value.Total > 0 ? (double)c.Value.Correct / c.Value.Total : 0)
+                           .FirstOrDefault().Key
+            : "Genel";
+
+        bool isEligible = scorePercentage >= 75;
+
+        Console.WriteLine($"[AI SERVICE LOG] Analiz Bitti. Skor: {scorePercentage}");
+
+        return new AiAnalysisResult
+        {
+            PrimarySkill = topCategory,
+            FeedbackSummary = isEligible
+                ? $"Tebrikler! {topCategory} alanında başarılı bir performans sergilediniz."
+                : $"Katılımınız için teşekkürler. {topCategory} alanında biraz daha pratik yapabilirsiniz.",
+            IsEligibleForInterview = isEligible,
+            OverallScore = scorePercentage
+        };
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[AI SERVICE EXCEPTION] {ex.Message}\n{ex.StackTrace}");
+        return new AiAnalysisResult
+        {
+            PrimarySkill = "Genel",
+            FeedbackSummary = "Analiz hesaplanırken bir zaman aşımı oluştu.",
+            IsEligibleForInterview = false,
+            OverallScore = 0
+        };
+    }
+}
     }
 }
