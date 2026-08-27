@@ -36,7 +36,6 @@ namespace CompetitionForBusiness.Services
 
                 if (userAnswers == null || !userAnswers.Any())
                 {
-                    Console.WriteLine("[AI SERVICE LOG] Cevap bulunamadı.");
                     return new AiAnalysisResult
                     {
                         PrimarySkill = "Genel",
@@ -46,21 +45,16 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. KİLİTLENMEYİ ÇÖZEN KISIM:
-                // Tüm nesneyi çekmek yerine SADECE gerekli kolonları anonim tip olarak çekiyoruz.
-                Console.WriteLine("[AI SERVICE LOG] Sorular hafif (Select) sorguyla çekiliyor...");
+                // 2. KİLİTLENMEYİ ÇÖZEN HAM SQL KODU:
+                // EF Core tracking mekanizmasını tamamen baypas eden Raw SQL sorgusu atıyoruz
+                Console.WriteLine("[AI SERVICE LOG] Raw SQL ile sorular çekiliyor...");
 
                 var questionsList = await _context.Questions
+                    .FromSqlRaw("SELECT * FROM \"Questions\"") // Supabase'deki tablo adınız "questions" ise küçük harfle yazın: "SELECT * FROM questions"
                     .AsNoTracking()
-                    .Select(q => new 
-                    {
-                        Id = q.Id,
-                        CorrectOption = q.CorrectOption,
-                        Category = q.Category
-                    })
                     .ToListAsync();
 
-                Console.WriteLine($"[AI SERVICE LOG] Çekilen soru sayısı: {questionsList.Count}");
+                Console.WriteLine($"[AI SERVICE LOG] Raw SQL ile çekilen soru sayısı: {questionsList.Count}");
 
                 var questionsDict = questionsList.ToDictionary(q => q.Id);
 
@@ -104,7 +98,7 @@ namespace CompetitionForBusiness.Services
 
                 bool isEligible = scorePercentage >= 75;
 
-                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Bitti. Skor: %{scorePercentage}, Alan: {topCategory}");
+                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Bitti. Skor: %{scorePercentage}");
 
                 return new AiAnalysisResult
                 {
