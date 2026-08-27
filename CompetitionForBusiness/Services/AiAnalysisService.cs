@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -27,7 +28,7 @@ namespace CompetitionForBusiness.Services
             {
                 Console.WriteLine($"[AI SERVICE LOG] Analiz başladı. ID: {participantId}");
 
-                // 1. Cevapları EF Core ile çekiyoruz (Burada takılma olmuyor)
+                // 1. Cevapları EF Core ile çekiyoruz
                 var userAnswers = await _context.UserAnswers
                     .AsNoTracking()
                     .Where(u => u.ParticipantId == participantId)
@@ -46,37 +47,47 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. KİLİTLENMEYİ %100 ÇÖZEN ADO.NET YÖNTEMİ
-                // EF Core DbSet'i tamamen atlayıp doğrudan veritabanı bağlantısı üzerinden Okuma Yapıyoruz:
-                Console.WriteLine("[AI SERVICE LOG] ADO.NET ile doğrudan veritabanından sorular okunuyor...");
+                // 2. KİLİTLENMEYİ %100 ÇÖZEN İZOLE BAĞLANTI YÖNTEMİ
+                Console.WriteLine("[AI SERVICE LOG] Bağımsız yeni bağlantı açılıyor...");
 
                 var questionsDict = new Dictionary<int, (string? CorrectOption, string? Category)>();
 
-                var connection = _context.Database.GetDbConnection();
-                if (connection.State != ConnectionState.Open)
-                {
-                    await connection.OpenAsync();
-                }
+                // Bağlantı cümlesini mevcut DbContext'ten alıyoruz ama YENİ bir bağlantı nesnesi oluşturuyoruz:
+                var connectionString = _context.Database.GetConnectionString();
+                
+                // EF Core DbProviderFactory kullanarak tamamen bağımsız bir connection türetiyoruz
+                var factory = DbProviderFactories.GetFactory(_context.Database.GetDbConnection());
 
-                using (var command = connection.CreateCommand())
+                using (var newConnection = factory.CreateConnection())
                 {
-                    // PostgreSQL tablo/kolon isimleriniz varsayılan lowercase ise "questions", "id", "correct_option", "category" olarak sorgulayın
-                    command.CommandText = "SELECT id, correct_option, category FROM questions";
+                    if (newConnection == null)
+                        throw new Exception("Veritabanı bağlantı fabrikası (DbProviderFactory) oluşturulamadı.");
 
-                    using (var reader = await command.ExecuteReaderAsync())
+                    newConnection.ConnectionString = connectionString;
+                    await newConnection.OpenAsync();
+
+                    using (var command = newConnection.CreateCommand())
                     {
-                        while (await reader.ReadAsync())
-                        {
-                            int id = reader.GetInt32(0);
-                            string? correctOption = reader.IsDBNull(1) ? null : reader.GetString(1);
-                            string? category = reader.IsDBNull(2) ? null : reader.GetString(2);
+                        // PostgreSQL tablonuzdaki küçük harf kolon isimleri
+                        command.CommandText = "SELECT id, correct_option, category FROM questions";
 
-                            questionsDict[id] = (correctOption, category);
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                int id = reader.GetInt32(0);
+                                string? correctOption = reader.IsDBNull(1) ? null : reader.GetString(1);
+                                string? category = reader.IsDBNull(2) ? null : reader.GetString(2);
+
+                                questionsDict[id] = (correctOption, category);
+                            }
                         }
                     }
+
+                    await newConnection.CloseAsync();
                 }
 
-                Console.WriteLine($"[AI SERVICE LOG] ADO.NET ile çekilen soru sayısı: {questionsDict.Count}");
+                Console.WriteLine($"[AI SERVICE LOG] Bağımsız bağlantı ile çekilen soru sayısı: {questionsDict.Count}");
 
                 // 3. Hesaplamalar
                 int totalCorrect = 0;
