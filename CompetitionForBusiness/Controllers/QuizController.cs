@@ -166,5 +166,37 @@ public async Task<IActionResult> GetQuestions()
         return StatusCode(500, $"Soru getirme hatası: {ex.Message}");
     }
 }
+[HttpPost("submit")]
+public async Task<IActionResult> SubmitQuiz([FromBody] QuizSubmissionDto model)
+{
+    try
+    {
+        // Burada gelen katılımcı ID'si ve puanı veritabanına kaydedebilirsiniz
+        Console.WriteLine($"[LOG] Quiz bitti. Katılımcı ID: {model.ParticipantId}, Puan: {model.Score}");
+
+        // Örnek: Participant tablosunda ilgili kullanıcının skorunu güncelleyebilirsiniz
+        var participant = await _context.Participants.FindAsync(model.ParticipantId);
+        if (participant != null)
+        {
+            // Eğer Participant modelinizde score alanı varsa:
+            // participant.Score = model.Score;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(new { message = "Puan başarıyla kaydedildi." });
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[HATA] Submit hatası: {ex.Message}");
+        return StatusCode(500, $"Kayıt hatası: {ex.Message}");
+    }
+}
+
+// DTO Sınıfı
+public class QuizSubmissionDto
+{
+    public Guid ParticipantId { get; set; }
+    public int Score { get; set; }
+}
     }
 }
