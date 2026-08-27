@@ -3,6 +3,7 @@ using CompetitionForBusiness.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -26,7 +27,7 @@ namespace CompetitionForBusiness.Services
             {
                 Console.WriteLine($"[AI SERVICE LOG] Analiz başladı. ID: {participantId}");
 
-                // 1. Cevapları çek
+                // 1. Cevapları EF Core ile çekiyoruz (Burada takılma olmuyor)
                 var userAnswers = await _context.UserAnswers
                     .AsNoTracking()
                     .Where(u => u.ParticipantId == participantId)
@@ -45,18 +46,37 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. KİLİTLENMEYİ ÇÖZEN HAM SQL KODU:
-                // EF Core tracking mekanizmasını tamamen baypas eden Raw SQL sorgusu atıyoruz
-                Console.WriteLine("[AI SERVICE LOG] Raw SQL ile sorular çekiliyor...");
+                // 2. KİLİTLENMEYİ %100 ÇÖZEN ADO.NET YÖNTEMİ
+                // EF Core DbSet'i tamamen atlayıp doğrudan veritabanı bağlantısı üzerinden Okuma Yapıyoruz:
+                Console.WriteLine("[AI SERVICE LOG] ADO.NET ile doğrudan veritabanından sorular okunuyor...");
 
-                var questionsList = await _context.Questions
-                    .FromSqlRaw("SELECT * FROM \"Questions\"") // Supabase'deki tablo adınız "questions" ise küçük harfle yazın: "SELECT * FROM questions"
-                    .AsNoTracking()
-                    .ToListAsync();
+                var questionsDict = new Dictionary<int, (string? CorrectOption, string? Category)>();
 
-                Console.WriteLine($"[AI SERVICE LOG] Raw SQL ile çekilen soru sayısı: {questionsList.Count}");
+                var connection = _context.Database.GetDbConnection();
+                if (connection.State != ConnectionState.Open)
+                {
+                    await connection.OpenAsync();
+                }
 
-                var questionsDict = questionsList.ToDictionary(q => q.Id);
+                using (var command = connection.CreateCommand())
+                {
+                    // PostgreSQL tablo/kolon isimleriniz varsayılan lowercase ise "questions", "id", "correct_option", "category" olarak sorgulayın
+                    command.CommandText = "SELECT id, correct_option, category FROM questions";
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            int id = reader.GetInt32(0);
+                            string? correctOption = reader.IsDBNull(1) ? null : reader.GetString(1);
+                            string? category = reader.IsDBNull(2) ? null : reader.GetString(2);
+
+                            questionsDict[id] = (correctOption, category);
+                        }
+                    }
+                }
+
+                Console.WriteLine($"[AI SERVICE LOG] ADO.NET ile çekilen soru sayısı: {questionsDict.Count}");
 
                 // 3. Hesaplamalar
                 int totalCorrect = 0;
@@ -98,7 +118,7 @@ namespace CompetitionForBusiness.Services
 
                 bool isEligible = scorePercentage >= 75;
 
-                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Bitti. Skor: %{scorePercentage}");
+                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Tamamlandı! Skor: %{scorePercentage}");
 
                 return new AiAnalysisResult
                 {
