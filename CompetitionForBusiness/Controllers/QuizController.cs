@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Linq; // LINQ işlemleri (Select, ToListAsync) için şart
 using System.Threading.Tasks;
 
 namespace CompetitionForBusiness.Controllers
@@ -52,8 +53,13 @@ namespace CompetitionForBusiness.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto model)
         {
+            Console.WriteLine($"[RENDER LOG] /register çağrıldı: {model?.Email}");
+
             if (model == null || string.IsNullOrWhiteSpace(model.Email))
+            {
+                Console.WriteLine("[RENDER HATA] Register: Geçersiz model veya boş email.");
                 return BadRequest("Geçersiz kayıt verisi.");
+            }
 
             try
             {
@@ -73,9 +79,9 @@ namespace CompetitionForBusiness.Controllers
                 _context.Participants.Add(participant);
                 await _context.SaveChangesAsync();
 
-                Console.WriteLine($"[LOG] Kullanıcı başarıyla kaydedildi ID: {participant.Id}");
+                Console.WriteLine($"[RENDER LOG] Kullanıcı başarıyla kaydedildi -> ID: {participant.Id}");
 
-                return StatusCode(200, new
+                return Ok(new
                 {
                     id = participant.Id,
                     fullName = participant.FullName,
@@ -86,7 +92,7 @@ namespace CompetitionForBusiness.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HATA] Register hatası: {ex.Message}");
+                Console.WriteLine($"[RENDER EXCEPTION] Register Hatası: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Kayıt hatası: {ex.Message}");
             }
         }
@@ -95,7 +101,7 @@ namespace CompetitionForBusiness.Controllers
         [HttpGet("questions")]
         public async Task<IActionResult> GetQuestions()
         {
-            Console.WriteLine("[LOG] /questions isteği ulaştı.");
+            Console.WriteLine("[RENDER LOG] /questions isteği ulaştı.");
             try
             {
                 var questions = await _context.Questions
@@ -112,23 +118,24 @@ namespace CompetitionForBusiness.Controllers
                     })
                     .ToListAsync();
 
-                Console.WriteLine($"[LOG] Dönen soru sayısı: {questions.Count}");
-                return StatusCode(200, questions);
+                Console.WriteLine($"[RENDER LOG] Dönen soru sayısı: {questions.Count}");
+                return Ok(questions);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HATA] Questions çekilirken hata: {ex.Message}");
+                Console.WriteLine($"[RENDER EXCEPTION] Questions Çekilirken Hata: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Soru getirme hatası: {ex.Message}");
             }
         }
 
-        // 3. Tekil Soru Cevabı Kaydetme (Soru bazlı akış için)
+        // 3. Tekil Soru Cevabı Kaydetme
         [HttpPost("submit-answer")]
         public async Task<IActionResult> SubmitAnswer([FromBody] SubmitAnswerDto dto)
         {
+            Console.WriteLine($"[RENDER LOG] /submit-answer çağrıldı. Katılımcı: {dto?.ParticipantId}");
             try
             {
-                Console.WriteLine($"[LOG] Cevap alındı -> Katılımcı: {dto.ParticipantId}, Soru: {dto.QuestionId}, Seçim: {dto.SelectedOption}");
+                if (dto == null) return BadRequest("Cevap verisi boş olamaz.");
 
                 var answer = new UserAnswer
                 {
@@ -142,35 +149,37 @@ namespace CompetitionForBusiness.Controllers
                 _context.UserAnswers.Add(answer);
                 await _context.SaveChangesAsync();
 
-                return StatusCode(200, new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
+                Console.WriteLine($"[RENDER LOG] Cevap başarıyla kaydedildi. AnswerID: {answer.Id}");
+                return Ok(new { message = "Yanıt başarıyla kaydedildi.", answerId = answer.Id });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HATA] SubmitAnswer hatası: {ex.Message}");
+                Console.WriteLine($"[RENDER EXCEPTION] SubmitAnswer Hatası: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Cevap kaydetme hatası: {ex.Message}");
             }
         }
 
-        // 4. Genel Quiz Puanı Kaydetme (Quiz sonu için)
+        // 4. Genel Quiz Puanı Kaydetme
         [HttpPost("submit")]
         public async Task<IActionResult> SubmitQuiz([FromBody] QuizSubmissionDto model)
         {
+            Console.WriteLine($"[RENDER LOG] /submit çağrıldı. Katılımcı ID: {model?.ParticipantId}");
             try
             {
-                Console.WriteLine($"[LOG] Quiz bitti. Katılımcı ID: {model.ParticipantId}, Puan: {model.Score}");
+                if (model == null) return BadRequest("Quiz verisi boş olamaz.");
 
                 var participant = await _context.Participants.FindAsync(model.ParticipantId);
                 if (participant != null)
                 {
-                    // Katılımcı güncellemeleri gerekirse burada yapılır
                     await _context.SaveChangesAsync();
                 }
 
-                return StatusCode(200, new { message = "Puan başarıyla kaydedildi." });
+                Console.WriteLine($"[RENDER LOG] Quiz başarıyla tamamlandı.");
+                return Ok(new { message = "Puan başarıyla kaydedildi." });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HATA] Submit hatası: {ex.Message}");
+                Console.WriteLine($"[RENDER EXCEPTION] Submit Hatası: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Kayıt hatası: {ex.Message}");
             }
         }
@@ -179,14 +188,15 @@ namespace CompetitionForBusiness.Controllers
         [HttpGet("analyze-result/{participantId}")]
         public async Task<IActionResult> GetAnalysisResult(Guid participantId)
         {
+            Console.WriteLine($"[RENDER LOG] /analyze-result çağrıldı. ParticipantID: {participantId}");
             try
             {
                 var result = await _aiService.AnalyzeParticipantPerformanceAsync(participantId);
-                return StatusCode(200, result);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HATA] Yapay zeka analiz hatası: {ex.Message}");
+                Console.WriteLine($"[RENDER EXCEPTION] Yapay zeka analiz hatası: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Analiz alınamadı: {ex.Message}");
             }
         }
@@ -195,32 +205,50 @@ namespace CompetitionForBusiness.Controllers
         [HttpPost("add-question")]
         public async Task<IActionResult> AddQuestion([FromBody] Question question)
         {
-            _context.Questions.Add(question);
-            await _context.SaveChangesAsync();
-            return StatusCode(200, question);
+            Console.WriteLine($"[RENDER LOG] /add-question çağrıldı.");
+            try
+            {
+                _context.Questions.Add(question);
+                await _context.SaveChangesAsync();
+                return Ok(question);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RENDER EXCEPTION] AddQuestion Hatası: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, $"Soru ekleme hatası: {ex.Message}");
+            }
         }
 
         // 7. SignalR Yayın Endpoint'i
         [HttpPost("broadcast-question/{roomId}/{questionId}")]
         public async Task<IActionResult> BroadcastQuestion(string roomId, int questionId)
         {
-            var question = await _context.Questions.FindAsync(questionId);
-            if (question == null) return NotFound("Soru bulunamadı.");
-
-            var questionData = new
+            Console.WriteLine($"[RENDER LOG] /broadcast-question çağrıldı. Room: {roomId}, Question: {questionId}");
+            try
             {
-                question.Id,
-                question.QuestionText,
-                question.OptionA,
-                question.OptionB,
-                question.OptionC,
-                question.OptionD,
-                question.Category,
-                DurationSeconds = 15
-            };
+                var question = await _context.Questions.FindAsync(questionId);
+                if (question == null) return NotFound("Soru bulunamadı.");
 
-            await _hubContext.Clients.Group(roomId).SendAsync("ReceiveQuestion", questionData);
-            return StatusCode(200, new { Message = "Soru tüm katılımcılara gönderildi." });
+                var questionData = new
+                {
+                    question.Id,
+                    question.QuestionText,
+                    question.OptionA,
+                    question.OptionB,
+                    question.OptionC,
+                    question.OptionD,
+                    question.Category,
+                    DurationSeconds = 15
+                };
+
+                await _hubContext.Clients.Group(roomId).SendAsync("ReceiveQuestion", questionData);
+                return Ok(new { Message = "Soru tüm katılımcılara gönderildi." });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RENDER EXCEPTION] BroadcastQuestion Hatası: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, $"Yayın hatası: {ex.Message}");
+            }
         }
     }
 }
