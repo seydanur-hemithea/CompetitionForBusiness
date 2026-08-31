@@ -23,13 +23,15 @@ namespace CompetitionForBusiness.Services
             {
                 Console.WriteLine($"[AI SERVICE LOG] Analiz başladı. ID: {participantId}");
 
-                // 1. Kullanıcının cevaplarını çek
+                // 1. Kullanıcının cevaplarını ve soru verilerini TEK SORGUMUZA AsNoTracking ile çekiyoruz.
+                // Bu yöntem veritabanına sadece 1 hafif istek atar ve bağlantıyı anında kapatır.
                 var userAnswers = await _context.UserAnswers
                     .AsNoTracking()
+                    .Include(u => u.Question)
                     .Where(u => u.ParticipantId == participantId)
                     .ToListAsync();
 
-                Console.WriteLine($"[AI SERVICE LOG] Cevap sayısı: {userAnswers.Count}");
+                Console.WriteLine($"[AI SERVICE LOG] Çekilen cevap sayısı: {userAnswers.Count}");
 
                 if (userAnswers == null || !userAnswers.Any())
                 {
@@ -42,20 +44,7 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. Soruları doğrudan EF Core AsNoTracking ile çek (Kilitlenmeyi önler)
-                var questions = await _context.Questions
-                    .AsNoTracking()
-                    .Select(q => new { q.Id, q.CorrectOption, q.Category })
-                    .ToListAsync();
-
-                var questionsDict = questions.ToDictionary(
-                    q => q.Id, 
-                    q => (CorrectOption: q.CorrectOption, Category: q.Category)
-                );
-
-                Console.WriteLine($"[AI SERVICE LOG] Çekilen soru sayısı: {questionsDict.Count}");
-
-                // 3. Hesaplamaları yap
+                // 2. Doğruluk ve Kategori Hesaplamaları
                 int totalCorrect = 0;
                 double totalResponseTime = 0;
                 var categoryStats = new Dictionary<string, (int Correct, int Total)>();
@@ -64,9 +53,9 @@ namespace CompetitionForBusiness.Services
                 {
                     totalResponseTime += answer.ResponseTimeMs;
 
-                    if (questionsDict.TryGetValue(answer.QuestionId, out var question))
+                    if (answer.Question != null)
                     {
-                        string targetOption = question.CorrectOption ?? string.Empty;
+                        string targetOption = answer.Question.CorrectOption ?? string.Empty;
                         string selectedOption = answer.SelectedOption ?? string.Empty;
 
                         bool isCorrect = !string.IsNullOrEmpty(selectedOption) &&
@@ -74,7 +63,7 @@ namespace CompetitionForBusiness.Services
 
                         if (isCorrect) totalCorrect++;
 
-                        string category = string.IsNullOrWhiteSpace(question.Category) ? "Genel" : question.Category;
+                        string category = string.IsNullOrWhiteSpace(answer.Question.Category) ? "Genel" : answer.Question.Category;
 
                         if (!categoryStats.ContainsKey(category))
                             categoryStats[category] = (0, 0);
@@ -88,6 +77,7 @@ namespace CompetitionForBusiness.Services
                 int scorePercentage = totalAnswered > 0 ? (int)((double)totalCorrect / totalAnswered * 100) : 0;
                 double avgResponseTimeSec = totalAnswered > 0 ? Math.Round((totalResponseTime / totalAnswered) / 1000.0, 2) : 0;
 
+                // En başarılı olunan kategoriyi bulma
                 string topCategory = categoryStats.Any()
                     ? categoryStats.OrderByDescending(c => c.Value.Total > 0 ? (double)c.Value.Correct / c.Value.Total : 0)
                                    .FirstOrDefault().Key
@@ -95,7 +85,7 @@ namespace CompetitionForBusiness.Services
 
                 bool isEligible = scorePercentage >= 70;
 
-                Console.WriteLine($"[AI SERVICE LOG] Analiz Bitti. Skor: %{scorePercentage}");
+                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Tamamlandı. Skor: %{scorePercentage}");
 
                 return new AiAnalysisResult
                 {
