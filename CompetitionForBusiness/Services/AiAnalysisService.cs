@@ -1,12 +1,11 @@
 using CompetitionForBusiness.Data;
 using CompetitionForBusiness.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Linq;
-using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace CompetitionForBusiness.Services
@@ -14,12 +13,10 @@ namespace CompetitionForBusiness.Services
     public class AiAnalysisService
     {
         private readonly AppDbContext _context;
-        private readonly HttpClient _httpClient;
 
-        public AiAnalysisService(AppDbContext context, HttpClient httpClient)
+        public AiAnalysisService(AppDbContext context)
         {
             _context = context;
-            _httpClient = httpClient;
         }
 
         public async Task<AiAnalysisResult> AnalyzeParticipantPerformanceAsync(Guid participantId)
@@ -47,29 +44,19 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. KİLİTLENMEYİ %100 ÇÖZEN İZOLE BAĞLANTI YÖNTEMİ
-                Console.WriteLine("[AI SERVICE LOG] Bağımsız yeni bağlantı açılıyor...");
+                // 2. Doğrudan NpgsqlConnection kullanarak izole sorgu atıyoruz
+                Console.WriteLine("[AI SERVICE LOG] NpgsqlConnection ile sorular çekiliyor...");
 
                 var questionsDict = new Dictionary<int, (string? CorrectOption, string? Category)>();
-
-                // Bağlantı cümlesini mevcut DbContext'ten alıyoruz ama YENİ bir bağlantı nesnesi oluşturuyoruz:
                 var connectionString = _context.Database.GetConnectionString();
-                
-                // EF Core DbProviderFactory kullanarak tamamen bağımsız bir connection türetiyoruz
-                var factory = DbProviderFactories.GetFactory(_context.Database.GetDbConnection());
 
-                using (var newConnection = factory.CreateConnection())
+                using (var newConnection = new NpgsqlConnection(connectionString))
                 {
-                    if (newConnection == null)
-                        throw new Exception("Veritabanı bağlantı fabrikası (DbProviderFactory) oluşturulamadı.");
-
-                    newConnection.ConnectionString = connectionString;
                     await newConnection.OpenAsync();
 
-                    using (var command = newConnection.CreateCommand())
+                    using (var command = new NpgsqlCommand("SELECT id, correct_option, category FROM questions", newConnection))
                     {
-                        // PostgreSQL tablonuzdaki küçük harf kolon isimleri
-                        command.CommandText = "SELECT id, correct_option, category FROM questions";
+                        command.CommandTimeout = 15; // 15 saniye zamanaşımı
 
                         using (var reader = await command.ExecuteReaderAsync())
                         {
@@ -83,11 +70,10 @@ namespace CompetitionForBusiness.Services
                             }
                         }
                     }
-
                     await newConnection.CloseAsync();
                 }
 
-                Console.WriteLine($"[AI SERVICE LOG] Bağımsız bağlantı ile çekilen soru sayısı: {questionsDict.Count}");
+                Console.WriteLine($"[AI SERVICE LOG] Çekilen soru sayısı: {questionsDict.Count}");
 
                 // 3. Hesaplamalar
                 int totalCorrect = 0;
@@ -127,9 +113,9 @@ namespace CompetitionForBusiness.Services
                                    .FirstOrDefault().Key
                     : "Genel";
 
-                bool isEligible = scorePercentage >= 75;
+                bool isEligible = scorePercentage >= 70;
 
-                Console.WriteLine($"[AI SERVICE LOG] Analiz Başarıyla Tamamlandı! Skor: %{scorePercentage}");
+                Console.WriteLine($"[AI SERVICE LOG] Analiz Bitti. Skor: %{scorePercentage}");
 
                 return new AiAnalysisResult
                 {
@@ -143,11 +129,11 @@ namespace CompetitionForBusiness.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[AI SERVICE EXCEPTION] Hata Oluştu: {ex.Message}\n{ex.StackTrace}");
+                Console.WriteLine($"[AI SERVICE EXCEPTION] {ex.Message}\n{ex.StackTrace}");
                 return new AiAnalysisResult
                 {
                     PrimarySkill = "Genel",
-                    FeedbackSummary = "Analiz hesaplanırken beklenmeyen bir durum oluştu.",
+                    FeedbackSummary = "Analiz esnasında bir hata oluştu.",
                     IsEligibleForInterview = false,
                     OverallScore = 0
                 };
