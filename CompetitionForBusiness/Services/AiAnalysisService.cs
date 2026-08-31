@@ -1,10 +1,8 @@
 using CompetitionForBusiness.Data;
 using CompetitionForBusiness.Models;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -25,7 +23,7 @@ namespace CompetitionForBusiness.Services
             {
                 Console.WriteLine($"[AI SERVICE LOG] Analiz başladı. ID: {participantId}");
 
-                // 1. Cevapları EF Core ile çekiyoruz
+                // 1. Kullanıcının cevaplarını çek
                 var userAnswers = await _context.UserAnswers
                     .AsNoTracking()
                     .Where(u => u.ParticipantId == participantId)
@@ -44,38 +42,20 @@ namespace CompetitionForBusiness.Services
                     };
                 }
 
-                // 2. Doğrudan NpgsqlConnection kullanarak izole sorgu atıyoruz
-                Console.WriteLine("[AI SERVICE LOG] NpgsqlConnection ile sorular çekiliyor...");
+                // 2. Soruları doğrudan EF Core AsNoTracking ile çek (Kilitlenmeyi önler)
+                var questions = await _context.Questions
+                    .AsNoTracking()
+                    .Select(q => new { q.Id, q.CorrectOption, q.Category })
+                    .ToListAsync();
 
-                var questionsDict = new Dictionary<int, (string? CorrectOption, string? Category)>();
-                var connectionString = _context.Database.GetConnectionString();
-
-                using (var newConnection = new NpgsqlConnection(connectionString))
-                {
-                    await newConnection.OpenAsync();
-
-                    using (var command = new NpgsqlCommand("SELECT id, correct_option, category FROM questions", newConnection))
-                    {
-                        command.CommandTimeout = 15; // 15 saniye zamanaşımı
-
-                        using (var reader = await command.ExecuteReaderAsync())
-                        {
-                            while (await reader.ReadAsync())
-                            {
-                                int id = reader.GetInt32(0);
-                                string? correctOption = reader.IsDBNull(1) ? null : reader.GetString(1);
-                                string? category = reader.IsDBNull(2) ? null : reader.GetString(2);
-
-                                questionsDict[id] = (correctOption, category);
-                            }
-                        }
-                    }
-                    await newConnection.CloseAsync();
-                }
+                var questionsDict = questions.ToDictionary(
+                    q => q.Id, 
+                    q => (CorrectOption: q.CorrectOption, Category: q.Category)
+                );
 
                 Console.WriteLine($"[AI SERVICE LOG] Çekilen soru sayısı: {questionsDict.Count}");
 
-                // 3. Hesaplamalar
+                // 3. Hesaplamaları yap
                 int totalCorrect = 0;
                 double totalResponseTime = 0;
                 var categoryStats = new Dictionary<string, (int Correct, int Total)>();
